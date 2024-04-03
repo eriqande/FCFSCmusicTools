@@ -1,0 +1,279 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+# FCFSCmusicTools
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+The goal of FCFSCmusicTools is to make it easy to copy the music for a
+figure skating competition into a structure that follows the event order
+and start order.
+
+The basic ingredients it works with are:
+
+1.  The official Starting Order PDFs that are produced by Sheldrin.
+2.  The “Music Report” downloaded from EMS. (This is an excel file)
+3.  The directory full of directories full of music downloaded from EMS.
+
+## Installation
+
+You can install the development version of FCFSCmusicTools like so:
+
+``` r
+remotes::install_package("eriqande/FCFSCmusicTools")
+```
+
+## Example
+
+Here I step through what I did for the 2024 Fort Collins Classic.
+Unfortunately, I can’t post all the actual files on GitHub because it
+has individuals names and ID numbers in it, etc.
+
+``` r
+# load the library
+library(FCFSCmusicTools)
+#> Loading required package: fuzzyjoin
+#> Loading required package: pdftools
+#> Using poppler version 23.04.0
+#> Loading required package: readxl
+#> Loading required package: tidyverse
+#> ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+#> ✔ dplyr     1.1.2     ✔ readr     2.1.4
+#> ✔ forcats   1.0.0     ✔ stringr   1.5.0
+#> ✔ ggplot2   3.4.3     ✔ tibble    3.2.1
+#> ✔ lubridate 1.9.2     ✔ tidyr     1.3.0
+#> ✔ purrr     1.0.2     
+#> ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+#> ✖ dplyr::filter() masks stats::filter()
+#> ✖ dplyr::lag()    masks stats::lag()
+#> ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+```
+
+### Scrape starting orders from Sheldrin’s PDFs
+
+Before we proceed, let’s look at the files that we have from Sheldrin:
+
+    tree ~/Downloads/2024\ FCC\ Starting\ Orders
+    /Users/eriq/Downloads/2024 FCC Starting Orders
+    ├── Friday
+    │   ├── 101ijs.pdf
+    │   ├── 102ijs.pdf
+    │   ├── 103ijs.pdf
+    │   ├── 104ijs.pdf
+    │   ├── 105ijs.pdf
+    │   ├── 106ijs.pdf
+    │   ├── 107ijs.pdf
+    │   ├── 108ijs.pdf
+    │   ├── 109ijs.pdf
+    │   ├── 110ijs.pdf
+    │   ├── 111ijs.pdf
+    │   ├── 112ijs.pdf
+    │   ├── 113ijs.pdf
+    │   ├── 114ijs.pdf
+    │   ├── 115ijs.pdf
+    │   ├── 116ijs.pdf
+    │   ├── 117ijs.pdf
+    │   ├── 118ijs.pdf
+    │   ├── 119ijs.pdf
+    │   ├── 120ijs.pdf
+    │   ├── 121ijs.pdf
+    │   ├── 122ijs.pdf
+    │   ├── 123ijs.pdf
+    │   ├── 124ijs.pdf
+    │   ├── 125ijs.pdf
+    │   ├── 126ijs.pdf
+    │   ├── 127.pdf
+    │   ├── 128.pdf
+    │   ├── 129.pdf
+    │   ├── 130.pdf
+    │   ├── 131.pdf
+    │   ├── 132.pdf
+    │   ├── 133.pdf
+    │   ├── 134.pdf
+    │   ├── 135.pdf
+    │   ├── 136.pdf
+    │   ├── 137.pdf
+    │   ├── 138ijs.pdf
+    │   ├── 139ijs.pdf
+    │   ├── 140ijs.pdf
+    │   ├── 141ijs.pdf
+    │   ├── 142ijs.pdf
+    │   ├── 143ijs.pdf
+    │   ├── 144ijs.pdf
+    │   ├── 145ijs.pdf
+    │   ├── 146ijs.pdf
+    │   ├── 147ijs.pdf
+    │   ├── 148ijs.pdf
+    │   ├── 149ijs.pdf
+    │   ├── 150ijs.pdf
+    │   ├── 151.pdf
+    │   ├── 152.pdf
+    │   ├── 153ijs.pdf
+    │   └── 154ijs.pdf
+    ├── Saturday
+    │   ├── 155ijs.pdf
+    │   ├── 156ijs.pdf
+    │   ├── 157ijs.pdf
+    │   ├── 158ijs.pdf
+    │   ├── 159ijs.pdf
+    │   ├── 160.pdf
+    │   ├── 161.pdf
+    │   ├── 162.pdf
+    │   ├── 163.pdf
+    │   ├── 164.pdf
+    │   ├── 165.pdf
+    │   ├── 166ijs.pdf
+    │   ├── 167ijs.pdf
+    │   ├── 168ijs.pdf
+    │   ├── 169ijs.pdf
+    │   ├── 171ijs.pdf
+    │   ├── 174.pdf
+    │   ├── 175.pdf
+    │   ├── 176.pdf
+    │   ├── 177.pdf
+    │   ├── 178.pdf
+    │   ├── 179.pdf
+    │   ├── 180.pdf
+    │   ├── 181.pdf
+    │   ├── 182.pdf
+    │   ├── 183.pdf
+    │   ├── 184.pdf
+    │   ├── 185.pdf
+    │   ├── 186ijs.pdf
+    │   ├── 188ijs.pdf
+    │   ├── 189ijs.pdf
+    │   ├── 190ijs.pdf
+    │   ├── 193ijs.pdf
+    │   ├── 194ijs.pdf
+    │   └── 195ijs.pdf
+    └── Sunday
+        ├── 196.pdf
+        ├── 197.pdf
+        ├── 198.pdf
+        ├── 199.pdf
+        ├── 200.pdf
+        ├── 201.pdf
+        ├── 202.pdf
+        ├── 203.pdf
+        ├── 204.pdf
+        ├── 205.pdf
+        ├── 206.pdf
+        ├── 207.pdf
+        ├── 208.pdf
+        ├── 209.pdf
+        ├── 210.pdf
+        ├── 211.pdf
+        ├── 212.pdf
+        ├── 213.pdf
+        ├── 214.pdf
+        ├── 215.pdf
+        ├── 216.pdf
+        └── 217.pdf
+
+    4 directories, 111 files
+
+So, we want to get the relevant data out of those 111 PDF files. We do
+that with the function `scrape_starting_orders()`, like this:
+
+``` r
+# scrape starting orders out of the files Sheldrin sent
+start_ords <- scrape_starting_orders("~/Downloads/2024 FCC Starting Orders")
+```
+
+Here is what that looks like:
+
+``` r
+start_ords
+#> # A tibble: 370 × 15
+#>    day    competitor_index report_name  music_name report_event event_full path 
+#>    <chr>             <int> <chr>        <chr>      <chr>        <chr>      <chr>
+#>  1 Friday                1 Schuster, C… Claudia S… Intermediat… 101 Inter… /Use…
+#>  2 Friday                1 Tinant, Kaz… Kazumi Ti… Adult Bronz… 102 Adult… /Use…
+#>  3 Friday                1 Merkling, X… Xavier Me… Preliminary… 103 Preli… /Use…
+#>  4 Friday                2 Kumpe, Ceza… Cezanne K… Preliminary… 103 Preli… /Use…
+#>  5 Friday                3 Herman, Bri… Britton H… Preliminary… 103 Preli… /Use…
+#>  6 Friday                4 Vogel, Madi… Madison V… Preliminary… 103 Preli… /Use…
+#>  7 Friday                1 Moore, Haley Haley Moo… Pre-Juvenil… 104 Pre-J… /Use…
+#>  8 Friday                2 McManus, Ho… Holly McM… Pre-Juvenil… 104 Pre-J… /Use…
+#>  9 Friday                3 Knuckey, La… Lauren Kn… Pre-Juvenil… 104 Pre-J… /Use…
+#> 10 Friday                4 Hamdan, Nour Nour Hamd… Pre-Juvenil… 104 Pre-J… /Use…
+#> # ℹ 360 more rows
+#> # ℹ 8 more variables: text_vec <list>, title <chr>, event_number <chr>,
+#> #   event_name <chr>, segment <chr>, competitors_full <chr>, full_name <chr>,
+#> #   club <chr>
+```
+
+So, that is 370 separate starts, though not all will necessarily have
+music, that we are handling. Cool…
+
+### Read in the music report, join it, then manually inspect and curate the results
+
+The Music Reports can be downloaded from the EMS. Here we read one in:
+
+``` r
+music_report <- read_excel("data/2024FortCollinsClassic-MusicFile-2024-04-01 22·32.xls")
+```
+
+After that, we do a full join of the music report and the starting
+orders, using the function `join_report_and_start_order()`.
+
+``` r
+joined <- join_report_and_start_order(
+  MR = music_report,
+  SO = start_ords
+)
+```
+
+This join is done only on the skater names, because the event names
+might differ in the starting orders compared to in the music report
+because:
+
+1.  Events of different levels may be merged in the starting orders.
+2.  There might be typos in the starting orders event names
+3.  I may not have cleaned up the starting order event names properly
+    and there might be extra words in them.
+
+This ends up being a many-to-many join, and at this point, the function
+checks the event names from the records and the starting orders. If
+there is a starting-order event (`report_event`) that perfectly matches
+a music-record event (`Event`), then all other rows for that combination
+of skater name and music-record event are filtered out by the function.
+The ones that remain are arranged in order of string distance between
+the `Event` and the `report_event` and returned. A first column named
+`STATUS` of empty strings is added to this file as the first column.
+This file should be saved as a csv and then some manual curation is
+required.
+
+``` r
+write_csv(joined, file = "InspectAndCurate.csv")
+```
+
+The CSV file should be copied to something new like
+`InsepctAndCurate-Edited.csv` (this is so that your manual edits don’t
+get overwritten by running the code above) and opened (in Excel, for
+example) and the `STATUS` column should be assigned values as follows:
+
+1.  No change if the row is correct and should stay.
+2.  `d` if the row should be dropped because the correct `report_event`
+    is joined onto it elsewhere (typically right above the row that is
+    getting a `d`)
+3.  `F` if the row needs follow-up for any number of reasons, for
+    example:
+    - the skater name joined but there are no `event_reports` that
+      correspond to the Event. (Typically the skater has been placed
+      into one or more non-music events (spin challenges, etc.) but the
+      music report says the skater has some music).
+    - There is a typo in the skater name either in the starting order or
+      the music report (often spaces before the comma).
+
+### Filter and check the curated table
+
+Once the `d` and `F` notations have been made in the edited file (for
+example `InsepctAndCurate-Edited.csv` in the example above) and those
+edits have been saved in Excel (keeping it as a CSV file of the same
+name!!!) we read that back into R and remove the rows marked `d`, then
+we break out the `F` rows into a separate table `$inspect_further` and a
+table of clean ones `$clean`. The clean ones are checked to make sure
+that there is exactly one entry for each skater/music-report-event
+combo.
