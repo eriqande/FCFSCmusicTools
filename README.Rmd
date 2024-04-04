@@ -276,3 +276,50 @@ The parsing issues here are not a concern for this data set.
 
 We have a function to associate music files to the skater-event combos in a file
 of mp3s that has been downloaded from EMS.
+
+```{r}
+music_paths <- associate_music_files(
+  C = filtered_events_list$clean,
+  music_events_dir = "gitignored_data/Music/2024FortCollinsClassic",
+  new_music_dir = "~/Desktop/StartOrderMusic---2024FortCollinsClassic"
+)
+```
+
+Now, we can check to see if there were any failures:
+```{r}
+music_paths$failures
+```
+
+No failures.  So, all of them should be good to go:
+```{r}
+music_paths$all_rows
+```
+
+Since this all looks good, we can just copy things over.
+
+### Copy the files and md5sum the results
+
+First, I remove the directory that this is going to be getting written to:
+```sh
+rm -r ~/Desktop/StartOrderMusic---2024FortCollinsClassic
+```
+
+```r
+result_of_copy <- copy_music_files(Tbl = music_paths$all_rows)
+```
+
+
+See that we can see the md5's for these:
+```r
+result_of_copy %>%
+  select(1:4)
+```
+
+And, of course, we can check to see if there are any that are not correct.
+
+```r
+result_of_copy %>%
+  filter(md5_orig != md5_new)
+```
+
+That is all good.  Nothing was corrupted.  

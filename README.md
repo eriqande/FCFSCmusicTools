@@ -39,10 +39,10 @@ library(FCFSCmusicTools)
 #> Loading required package: readxl
 #> Loading required package: tidyverse
 #> ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
-#> ✔ dplyr     1.1.2     ✔ readr     2.1.4
-#> ✔ forcats   1.0.0     ✔ stringr   1.5.0
-#> ✔ ggplot2   3.4.3     ✔ tibble    3.2.1
-#> ✔ lubridate 1.9.2     ✔ tidyr     1.3.0
+#> ✔ dplyr     1.1.4     ✔ readr     2.1.4
+#> ✔ forcats   1.0.0     ✔ stringr   1.5.1
+#> ✔ ggplot2   3.4.4     ✔ tibble    3.2.1
+#> ✔ lubridate 1.9.3     ✔ tidyr     1.3.0
 #> ✔ purrr     1.0.2     
 #> ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
 #> ✖ dplyr::filter() masks stats::filter()
@@ -313,3 +313,83 @@ The parsing issues here are not a concern for this data set.
 
 We have a function to associate music files to the skater-event combos
 in a file of mp3s that has been downloaded from EMS.
+
+``` r
+music_paths <- associate_music_files(
+  C = filtered_events_list$clean,
+  music_events_dir = "gitignored_data/Music/2024FortCollinsClassic",
+  new_music_dir = "~/Desktop/StartOrderMusic---2024FortCollinsClassic"
+)
+```
+
+Now, we can check to see if there were any failures:
+
+``` r
+music_paths$failures
+#> # A tibble: 0 × 34
+#> # ℹ 34 variables: orig_music_path <chr>, orig_music_basename <chr>,
+#> #   new_music_path <chr>, EventCamel <chr>, Music_regex <chr>,
+#> #   ExpectedMusicPath <chr>, STATUS <chr>, strdist <chr>,
+#> #   hasPerfectMatch <chr>, Name <chr>, Event <chr>, report_event <chr>,
+#> #   event_full <chr>, Mb # <chr>, Segment <chr>, Skater Email <chr>,
+#> #   Skater Phone <chr>, Status <chr>, Uploaded <chr>, Copyright <chr>,
+#> #   Music Duration <chr>, Program Last Modified <chr>, day <chr>, …
+```
+
+No failures. So, all of them should be good to go:
+
+``` r
+music_paths$all_rows
+#> # A tibble: 281 × 34
+#>    orig_music_path     orig_music_basename new_music_path EventCamel Music_regex
+#>    <chr>               <chr>               <chr>          <chr>      <chr>      
+#>  1 gitignored_data/Mu… Claudia Schuster35… ~/Desktop/Sta… Intermedi… "Claudia +…
+#>  2 gitignored_data/Mu… Kazumi Tinant5508_… ~/Desktop/Sta… AdultBron… "Kazumi +T…
+#>  3 gitignored_data/Mu… Xavier Merkling537… ~/Desktop/Sta… Prelimina… "Xavier +M…
+#>  4 gitignored_data/Mu… Cezanne Kumpe4258_… ~/Desktop/Sta… Prelimina… "Cezanne +…
+#>  5 gitignored_data/Mu… Britton Herman0521… ~/Desktop/Sta… Prelimina… "Britton +…
+#>  6 gitignored_data/Mu… Madison Vogel1441_… ~/Desktop/Sta… Prelimina… "Madison +…
+#>  7 gitignored_data/Mu… Haley Moore1347_PJ… ~/Desktop/Sta… PreJuveni… "Haley +Mo…
+#>  8 gitignored_data/Mu… Holly McManus5708_… ~/Desktop/Sta… PreJuveni… "Holly +Mc…
+#>  9 gitignored_data/Mu… Lauren Knuckey7476… ~/Desktop/Sta… PreJuveni… "Lauren +K…
+#> 10 gitignored_data/Mu… Nour Hamdan8164_PJ… ~/Desktop/Sta… PreJuveni… "Nour +Ham…
+#> # ℹ 271 more rows
+#> # ℹ 29 more variables: ExpectedMusicPath <chr>, STATUS <chr>, strdist <chr>,
+#> #   hasPerfectMatch <chr>, Name <chr>, Event <chr>, report_event <chr>,
+#> #   event_full <chr>, `Mb #` <chr>, Segment <chr>, `Skater Email` <chr>,
+#> #   `Skater Phone` <chr>, Status <chr>, Uploaded <chr>, Copyright <chr>,
+#> #   `Music Duration` <chr>, `Program Last Modified` <chr>, day <chr>,
+#> #   competitor_index <chr>, music_name <chr>, path <chr>, text_vec <lgl>, …
+```
+
+Since this all looks good, we can just copy things over.
+
+### Copy the files and md5sum the results
+
+First, I remove the directory that this is going to be getting written
+to:
+
+``` sh
+rm -r ~/Desktop/StartOrderMusic---2024FortCollinsClassic
+```
+
+``` r
+result_of_copy <- copy_music_files(Tbl = music_paths$all_rows)
+```
+
+See that we can see the md5’s for these:
+
+``` r
+result_of_copy %>%
+  select(1:4)
+```
+
+And, of course, we can check to see if there are any that are not
+correct.
+
+``` r
+result_of_copy %>%
+  filter(md5_orig != md5_new)
+```
+
+That is all good. Nothing was corrupted.
