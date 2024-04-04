@@ -54,8 +54,8 @@ library(FCFSCmusicTools)
 
 Before we proceed, let’s look at the files that we have from Sheldrin:
 
-    tree ~/Downloads/2024\ FCC\ Starting\ Orders
-    /Users/eriq/Downloads/2024 FCC Starting Orders
+    tree gitignored_data/2024-FCC-Starting-Orders/
+    gitignored_data/2024-FCC-Starting-Orders/
     ├── Friday
     │   ├── 101ijs.pdf
     │   ├── 102ijs.pdf
@@ -92,14 +92,12 @@ Before we proceed, let’s look at the files that we have from Sheldrin:
     │   ├── 133.pdf
     │   ├── 134.pdf
     │   ├── 135.pdf
-    │   ├── 136.pdf
     │   ├── 137.pdf
     │   ├── 138ijs.pdf
     │   ├── 139ijs.pdf
     │   ├── 140ijs.pdf
     │   ├── 141ijs.pdf
     │   ├── 142ijs.pdf
-    │   ├── 143ijs.pdf
     │   ├── 144ijs.pdf
     │   ├── 145ijs.pdf
     │   ├── 146ijs.pdf
@@ -127,7 +125,10 @@ Before we proceed, let’s look at the files that we have from Sheldrin:
     │   ├── 167ijs.pdf
     │   ├── 168ijs.pdf
     │   ├── 169ijs.pdf
+    │   ├── 170ijs.pdf
     │   ├── 171ijs.pdf
+    │   ├── 172ijs.pdf
+    │   ├── 173ijs.pdf
     │   ├── 174.pdf
     │   ├── 175.pdf
     │   ├── 176.pdf
@@ -141,9 +142,12 @@ Before we proceed, let’s look at the files that we have from Sheldrin:
     │   ├── 184.pdf
     │   ├── 185.pdf
     │   ├── 186ijs.pdf
+    │   ├── 187ijs.pdf
     │   ├── 188ijs.pdf
     │   ├── 189ijs.pdf
     │   ├── 190ijs.pdf
+    │   ├── 191ijs.pdf
+    │   ├── 192ijs.pdf
     │   ├── 193ijs.pdf
     │   ├── 194ijs.pdf
     │   └── 195ijs.pdf
@@ -171,34 +175,34 @@ Before we proceed, let’s look at the files that we have from Sheldrin:
         ├── 216.pdf
         └── 217.pdf
 
-    4 directories, 111 files
+    4 directories, 115 files
 
-So, we want to get the relevant data out of those 111 PDF files. We do
+So, we want to get the relevant data out of those 115 PDF files. We do
 that with the function `scrape_starting_orders()`, like this:
 
 ``` r
 # scrape starting orders out of the files Sheldrin sent
-start_ords <- scrape_starting_orders("~/Downloads/2024 FCC Starting Orders")
+start_ords <- scrape_starting_orders("gitignored_data/2024-FCC-Starting-Orders")
 ```
 
 Here is what that looks like:
 
 ``` r
 start_ords
-#> # A tibble: 370 × 15
+#> # A tibble: 381 × 15
 #>    day    competitor_index report_name  music_name report_event event_full path 
 #>    <chr>             <int> <chr>        <chr>      <chr>        <chr>      <chr>
-#>  1 Friday                1 Schuster, C… Claudia S… Intermediat… 101 Inter… /Use…
-#>  2 Friday                1 Tinant, Kaz… Kazumi Ti… Adult Bronz… 102 Adult… /Use…
-#>  3 Friday                1 Merkling, X… Xavier Me… Preliminary… 103 Preli… /Use…
-#>  4 Friday                2 Kumpe, Ceza… Cezanne K… Preliminary… 103 Preli… /Use…
-#>  5 Friday                3 Herman, Bri… Britton H… Preliminary… 103 Preli… /Use…
-#>  6 Friday                4 Vogel, Madi… Madison V… Preliminary… 103 Preli… /Use…
-#>  7 Friday                1 Moore, Haley Haley Moo… Pre-Juvenil… 104 Pre-J… /Use…
-#>  8 Friday                2 McManus, Ho… Holly McM… Pre-Juvenil… 104 Pre-J… /Use…
-#>  9 Friday                3 Knuckey, La… Lauren Kn… Pre-Juvenil… 104 Pre-J… /Use…
-#> 10 Friday                4 Hamdan, Nour Nour Hamd… Pre-Juvenil… 104 Pre-J… /Use…
-#> # ℹ 360 more rows
+#>  1 Friday                1 Schuster, C… Claudia S… Intermediat… 101 Inter… giti…
+#>  2 Friday                1 Tinant, Kaz… Kazumi Ti… Adult Bronz… 102 Adult… giti…
+#>  3 Friday                1 Merkling, X… Xavier Me… Preliminary… 103 Preli… giti…
+#>  4 Friday                2 Kumpe, Ceza… Cezanne K… Preliminary… 103 Preli… giti…
+#>  5 Friday                3 Herman, Bri… Britton H… Preliminary… 103 Preli… giti…
+#>  6 Friday                4 Vogel, Madi… Madison V… Preliminary… 103 Preli… giti…
+#>  7 Friday                1 Moore, Haley Haley Moo… Pre-Juvenil… 104 Pre-J… giti…
+#>  8 Friday                2 McManus, Ho… Holly McM… Pre-Juvenil… 104 Pre-J… giti…
+#>  9 Friday                3 Knuckey, La… Lauren Kn… Pre-Juvenil… 104 Pre-J… giti…
+#> 10 Friday                4 Hamdan, Nour Nour Hamd… Pre-Juvenil… 104 Pre-J… giti…
+#> # ℹ 371 more rows
 #> # ℹ 8 more variables: text_vec <list>, title <chr>, event_number <chr>,
 #> #   event_name <chr>, segment <chr>, competitors_full <chr>, full_name <chr>,
 #> #   club <chr>
@@ -209,14 +213,19 @@ music, that we are handling. Cool…
 
 ### Read in the music report, join it, then manually inspect and curate the results
 
-The Music Reports can be downloaded from the EMS. Here we read one in:
+The Music Reports can be downloaded from the EMS. Here we read one in
+and then we run it though a quick function to fix situations where there
+are spaces before the commas in the names (and/or no spaces after the
+comma).
 
 ``` r
-music_report <- read_excel("data/2024FortCollinsClassic-MusicFile-2024-04-01 22·32.xls")
+music_report <- read_excel("gitignored_data/2024FortCollinsClassic-MusicFile-2024-04-01 22·32.xls") %>%
+  clean_music_report()
 ```
 
 After that, we do a full join of the music report and the starting
-orders, using the function `join_report_and_start_order()`.
+orders, on the skater names using the function
+`join_report_and_start_order()`.
 
 ``` r
 joined <- join_report_and_start_order(
@@ -239,11 +248,13 @@ checks the event names from the records and the starting orders. If
 there is a starting-order event (`report_event`) that perfectly matches
 a music-record event (`Event`), then all other rows for that combination
 of skater name and music-record event are filtered out by the function.
-The ones that remain are arranged in order of string distance between
-the `Event` and the `report_event` and returned. A first column named
-`STATUS` of empty strings is added to this file as the first column.
-This file should be saved as a csv and then some manual curation is
-required.
+**(Note to Self: I could also filter out all occurrences of
+`report_events` that perfectly match to the individual somewhere but
+which have an imperfect match elsewhere.)** The ones that remain are
+arranged in order of string distance between the `Event` and the
+`report_event` and returned. A first column named `STATUS` of empty
+strings is added to this file as the first column. This file should be
+saved as a csv and then some manual curation is required.
 
 ``` r
 write_csv(joined, file = "InspectAndCurate.csv")
@@ -257,7 +268,10 @@ example) and the `STATUS` column should be assigned values as follows:
 1.  No change if the row is correct and should stay.
 2.  `d` if the row should be dropped because the correct `report_event`
     is joined onto it elsewhere (typically right above the row that is
-    getting a `d`)
+    getting a `d`). You can also use a `d` for any individuals that are
+    in there with non-musical events that produce NA’s in the Music
+    Report columns (the ones with Capital Column names). Or if the
+    skater+event corresponds to something that someone withdrew from.
 3.  `F` if the row needs follow-up for any number of reasons, for
     example:
     - the skater name joined but there are no `event_reports` that
@@ -273,7 +287,29 @@ Once the `d` and `F` notations have been made in the edited file (for
 example `InsepctAndCurate-Edited.csv` in the example above) and those
 edits have been saved in Excel (keeping it as a CSV file of the same
 name!!!) we read that back into R and remove the rows marked `d`, then
-we break out the `F` rows into a separate table `$inspect_further` and a
-table of clean ones `$clean`. The clean ones are checked to make sure
-that there is exactly one entry for each skater/music-report-event
-combo.
+we break out the `F` rows into a separate table `$follow_up` and a table
+of clean ones `$clean`. The clean ones are checked to make sure that
+there is exactly one entry for each skater/music-report-event combo.
+
+``` r
+filtered_events_list <- filter_and_check_curated_table("InspectAndCurate-Edited.csv")
+#> Warning: One or more parsing issues, call `problems()` on your data frame for details,
+#> e.g.:
+#>   dat <- vroom(...)
+#>   problems(dat)
+#> Rows: 315 Columns: 28
+#> ── Column specification ────────────────────────────────────────────────────────
+#> Delimiter: ","
+#> chr (27): STATUS, strdist, hasPerfectMatch, Name, Event, report_event, event...
+#> lgl  (1): text_vec
+#> 
+#> ℹ Use `spec()` to retrieve the full column specification for this data.
+#> ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+```
+
+The parsing issues here are not a concern for this data set.
+
+### Associate the music files to these
+
+We have a function to associate music files to the skater-event combos
+in a file of mp3s that has been downloaded from EMS.

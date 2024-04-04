@@ -2,3 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
+gitignored_data
+.DS_Store
