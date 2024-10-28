@@ -1,0 +1,181 @@
+---
+title: "Processing Music For FrightFest 2024"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+For FrightFest we use EntryEeze, which has a different management system for Music.
+
+Let's see if we can use the same tools for that (and probably write some new functions.)
+
+The setup for what we are doing now is:
+
+1.  Download all the music as _untagged_ and then put it in the gitignored directory.  It
+    looks like this:
+    ```{sh, eval=FALSE}
+    gitignored_data/FrightFest2024/
+    └── Music
+     └── Sunday
+        ├── AdultFreeSkate60_AdultPreBronze_Garg_Brenda.mp3
+        ├── AdultFreeSkate60_AdultPreBronze_Hill_Barbra.mp3
+        ├── CompeteUSAProgramwMusic_AdultHighBeginner_Koontz_Nelia.mp3
+        ├── CompeteUSAProgramwMusic_AdultHighBeginner_Lundin_Ruthie.mp3
+        ├── CompeteUSAProgramwMusic_Aspire1_Carrick_Grace.mp3
+        ├── CompeteUSAProgramwMusic_Aspire1_Davis_Paige.mp3
+     ...
+    ```
+    Note that I put it all in the "Sunday" folder.
+
+2.  Download all of Shedrin's start order PDFs.  These are formatted slightly
+    differently than at FoCo Classic last year, but I hope that they will still
+    scrape out on the same lines. Here is what the files look like:
+    ```{sh, eval=FALSE}
+    gitignored_data/FrightFest2024/StartingOrders/
+    └── Sunday
+     ├── 105.pdf
+     ├── 106.pdf
+     ├── 107.pdf
+     ├── 108.pdf
+     ...
+    ```
+    
+
+
+## Step 1. Scrape the starting orders
+
+```{r}
+library(FCFSCmusicTools)
+library(tidyverse)
+
+
+# scrape starting orders out of the files Sheldrin sent
+start_ords <- scrape_starting_orders("gitignored_data/FrightFest2024/StartingOrders")
+
+start_ords
+```
+
+
+OK, that parses out fine, it appears.
+
+## Step 2: Get a tibble of music and paths
+
+Because the event names are pretty munged between the music file names and the start orders,
+and because there are only 139 pieces of music, or so, I think I will just associate
+skater names (multiply, if there are multiple events) and then make a spreadsheet and hand-check
+the correct ones.  
+```{r}
+music <- tibble(
+    path = dir(path = "gitignored_data/FrightFest2024/Music/Sunday", full.names = TRUE)
+  ) %>%
+  mutate(
+    basename = basename(path)
+  ) %>%
+  separate(basename, into = c("event", "level", "last", "first", "ext"))
+```
+
+Now, the music title have stripped all non-letters out of the things, so we will do the same with the
+start orders, make a "squash_names" field that we can join on.
+```{r}
+so2 <- start_ords %>% 
+  mutate(squash_name = str_replace_all(full_name, "[^a-zA-Z]", ""))
+
+mus2 <- music %>%
+  mutate(
+    squash_name = case_when(
+      is.na(ext) ~ str_replace_all(last, "[^a-zA-Z]", ""),
+      TRUE ~ str_c(first, last) %>% str_replace_all("[^a-zA-Z]", ""),
+    )
+  )
+```
+
+
+Now, let's join those and get read to hand-check things.
+```{r}
+ready_for_eyes <- so2 %>%
+  left_join(mus2, by = join_by(squash_name)) %>%
+  arrange(squash_name, event_full) %>%
+  group_by(squash_name) %>%
+  mutate(
+    music_event = event,
+    music_level = level,
+    keep_it = ifelse(n()==1, "x", ""),
+    .after = event_full
+  )
+
+dir.create("gitignored_data/FrightFest2024/hand-check", recursive = TRUE, showWarnings = FALSE)
+write_csv(ready_for_eyes, file = "gitignored_data/FrightFest2024/hand-check/hand-check-RAW.csv")
+
+```
+
+
+Then, I copy hand-check-RAW to hand-check-CHECKED.csv by hand, and then we can read that back in and
+do some checks on it.
+```{r}
+hand_checked <- read_csv("gitignored_data/FrightFest2024/hand-check/hand-check-CHECKED.csv") %>%
+  filter(keep_it == "x")
+
+
+# how many keep_it events?  (139)
+nrow(hand_checked)
+
+# how many music titles?  (138)
+nrow(music)
+
+# We are missing Olivia's duet/trio music
+
+# check to make sure that hand_checked music includes all that we have seen and no duplicates
+setdiff(music$path, hand_checked$path.y)
+
+# and what is the music we are missing there?
+setdiff(hand_checked$path.y, music$path)
+
+hand_checked %>%
+  count(path.y) %>%
+  count(n)
+
+# yep! this is olivia's
+hand_checked %>%
+  filter(is.na(path.y))
+```
+
+
+Cool.  So, now all we have to do is choose a naming convention and copy the music over.
+I am going to leave the name of the music file the same, but I will just add the
+start order to the front of it.  That should be a good check that we have associated
+the music correctly with each event.
+```{r}
+ready_to_copy <- hand_checked %>%
+  filter(!is.na(path.y)) %>%
+  mutate(
+    new_music_path = file.path(
+      "~/Desktop/StartOrderMusic---2024FrightFest", 
+      day,
+      str_replace_all(event_full, "/", "--"),   # remove forward slashes in the event names
+      sprintf("%02d---%s", competitor_index, basename(path.y))
+    ),
+    orig_music_path = path.y,
+    .before = day
+  )
+```
+
+Then, we might want to remove the existing directory
+```sh
+rm -r ~/Desktop/StartOrderMusic---2024FrightFest
+```
+
+Then, run it:
+```{r}
+catch_it <- copy_music_files(ready_to_copy)
+```
+
+Let's check the MD5's:
+```{r}
+catch_it %>%
+  count(md5_orig == md5_new)
+```
+
+That is good! We have 138 pieces of music correctly copied!
+

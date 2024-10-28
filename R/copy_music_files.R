@@ -8,7 +8,6 @@
 #' `new_music_path`.
 #' @export
 copy_music_files <- function(Tbl) {
-  Tbl <- music_paths$all_rows
 
   new_files <- Tbl$new_music_path
 
