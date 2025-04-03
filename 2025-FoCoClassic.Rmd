@@ -126,5 +126,9 @@ it is nice to know where their other pieces of music are.  I am going to make
 a file of all the events for people in multiple events.
 ```{r}
 music_paths$all_rows %>%
-  select(Name, event_full)
+  select(Name, event_full) %>%
+  arrange(Name, event_full) %>%
+  group_by(Name) %>%
+  filter(n() > 1) %>%
+  write_csv(file = "gitignored_data/Outputs/2025-FCC-Multievent-Competitors.csv")
 ```
