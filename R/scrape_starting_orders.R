@@ -19,7 +19,7 @@ scrape_starting_orders <- function(Dir)
     title = map_chr(text_vec, function(x) str_trim(x[1])),
     event_full = map_chr(text_vec, function(x) str_trim(x[2])),
   ) %>%
-    extract(event_full, into = c("event_number", "event_name"), regex = "^([0-9]+) (.*)$", remove = FALSE) %>%
+    extract(event_full, into = c("event_number", "event_name"), regex = "^([0-9]+[A-Z]?) (.*)$", remove = FALSE) %>%
     mutate(
       competitors_full = map(text_vec, function(x) {y <- x[-(1:2)]; str_trim(y[str_detect(y, "^ +[0-9]+\\.?")])}),
     ) %>%

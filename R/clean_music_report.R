@@ -7,7 +7,8 @@
 clean_music_report <- function(X) {
   ret <- X %>%
     mutate(
-      Name = str_replace(Name, " +,", ",") # fix spaces before commas in names
+      Name = str_replace(Name, " +,", ",")  %>%   # fix spaces before commas in names
+        str_replace(",  +", ", ")          # fix excess spaces after commas in names
     )
   ret
 }

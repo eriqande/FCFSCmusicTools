@@ -1,0 +1,130 @@
+---
+title: "Organizing 2025 Fort Collins Classic music"
+output: html_notebook
+---
+
+
+# Notes:
+
+- A single person (Shelby 'Winter' Hutchinson) included a nickname in single quotes when they uploaded their music, so 
+I removed those quotes in the music report and then moved the music file so it does not have single quotes in it.
+- A parent sent me the correct music when finding they had uploaded the wrong one, so I have copied
+`/gitignored_data/Swap-Out-Music/2025-FCC/SamerH.EP12526.1.mp3` into `gitignored_data/Music/2025FortCollinsClassic/PreliminaryEmotionalPerformance/Samer Hajibrahim7138_PDP_F.mp3`.
+- Maria Julia Maymone had not gotten her music in.  (She was the only one, yay!)  She was out of the country,
+apparently, and her coach, Christopher Darling sent it to me.  I put it first in
+`MJ - Gimmie, Gimmie (PreJuv Excel FS 2_36).m4a' and from there I converted it to mp3 using the Music
+app, and then saved the mp3 version to: `gitignored_data/Music/2025FortCollinsClassic/JuvenileGirlsExcel/Maria Julia Maymone4999_JGX_F.mp3`.
+- I had to rename all the Synchro mp3 files to get them found by `associate_music_files()`
+- I also had to fix an excess space in Ruthie and Nelia's music name:
+```sh
+/Adult16Duets/--% (main) mv Nelia\ Koontz\ \&\ Ruthie\ \ Lundin9632_ADT_F.mp3 Nelia\ Koontz\ \&\ Ruthie\ Lundin9632_ADT_F.mp3
+```
+
+## Scrape Start Order PDFs
+
+```{r}
+library(FCFSCmusicTools)
+
+# we make a fix for a Van Pelt and another three-word name whose name does not get converted to report name correctly...
+start_ords0 <- scrape_starting_orders("gitignored_data/2025-FCC-Starting-Orders") %>%
+  mutate(
+    report_name = case_when(
+      music_name == "Gwenyth Van Pelt" ~ "Van Pelt, Gwenyth",
+      music_name == "Ella Moon Owens" ~ "Moon Owens, Ella",
+      music_name == "Rivkah Chavez Herrera" ~ "Chavez Herrera, Rivkah",
+      report_name == "Koontz, Lundin &" ~ "Lundin, Ruthie",
+      report_name == "Roybal, Rudman &" ~ "Rudman, Brynn",
+      TRUE ~ report_name
+    )
+  )
+```
+
+
+## Read in the music report and clean it
+
+```{r}
+music_report0 <- read_excel("gitignored_data/FortCollinsClassic2025-MusicFile-2025-03-30_22-29.xls") %>%
+  clean_music_report() %>%
+  mutate(Name = str_replace_all(Name, "'", "")) # remove the single quotes around someone's name
+
+synchro_music_report <- read_excel("gitignored_data/FortCollinsClassic2025-SYNCHRO-ONLY-MusicFile-2025-04-02_00_17.xls") %>%
+  clean_music_report() %>%
+  mutate(
+    Name = str_replace_all(Name, "[^a-zA-Z ]", "") %>%
+      str_replace_all(" +", " ")
+  )
+
+music_report <- bind_rows(music_report0, synchro_music_report)
+```
+
+Now, we do a little hand replacement to get the start_ords report_name for the synchro teams
+to be OK:
+```{r}
+start_ords <- start_ords0 %>%
+  mutate(
+    report_name = case_when(
+      report_name == "Icicles, Fort Collins Fire Crystal" ~ "Fort Collins Fire Crystals Icicles",
+      report_name == "Fireflies, Fort Collins Fire Crystals -" ~ "Fort Collins Fire Crystals Fireflies",
+      report_name == "Crystals, Fort Collins Fire" ~ "Fire Crystals",
+      report_name == "Crystals, Fort Collins Adult Fire" ~ "Adult Fire Crystal Team", 
+      TRUE ~ report_name
+    )
+  )
+```
+
+## Join those
+
+```{r}
+ joined <- join_report_and_start_order(
+  MR = music_report,
+  SO = start_ords
+)
+
+dir.create("gitignored_data/Outputs", showWarnings = FALSE, recursive = TRUE)
+
+write_csv(joined, file = "gitignored_data/Outputs/2025-FCC-Inspect-And-Curate.csv")
+```
+
+
+## Filter and check the curated table
+
+
+```{r}
+filtered_events_list <- filter_and_check_curated_table("gitignored_data/Outputs/2025-FCC-Inspect-And-Curate-EDITED.csv")
+```
+
+
+## Associate the music with that all
+
+```{r}
+music_paths <- associate_music_files(
+  C = filtered_events_list$clean,
+  music_events_dir = "gitignored_data/Music/2025FortCollinsClassic",
+  new_music_dir = "~/Desktop/StartOrderMusic---2025FortCollinsClassic"
+)
+
+# observe that there are no failures
+music_paths$failures
+```
+
+Now let's rename all that music and put it on the Desktop.
+Remove folder if still existing
+```sh
+rm -r ~/Desktop/StartOrderMusic---2025FortCollinsClassic
+```
+Then do it:
+```r
+result_of_copy <- copy_music_files(Tbl = music_paths$all_rows)
+```
+
+Then I checked the md5 checksums and they all looked good.
+
+## Make a file of multi-event competitors
+
+Sometimes people put their wrong music in for their different events.  In such cases
+it is nice to know where their other pieces of music are.  I am going to make
+a file of all the events for people in multiple events.
+```{r}
+music_paths$all_rows %>%
+  select(Name, event_full)
+```
