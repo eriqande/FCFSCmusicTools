@@ -110,6 +110,9 @@ What it does do though, is calculate the string distance between the `report_eve
 notes it as a perfect match and removes all other rows that joined up to it, so that
 you don't have to deal with those during manual curation.  
 
+**BIG NOTE! WE ARE JOINING ON  `music_name` NOW, AND KEEPING `Name` and `report_name`**
+
+
 Let's see what this looks like:
 ```{r}
 joined <- join_report_and_start_order(
@@ -135,40 +138,63 @@ joined_nas <- joined %>%
   arrange(Name)
 ```
 
-Then do `View(joined_nas)`.  Aha!  We see the problem is that the `report_name` and
-the `Name` do not match.  Note: if `event_full` is `NA`, then the `Name` column
-in `joined_nas` is giving us the `Name` from the `music_report`.
-If `event_full` is not NA, then `Name` is giving us the `report_name` from `start_ords`.
+Then do `View(joined_nas)`.  Aha!  We see the problem is that the `music_name` does
+not match between start_ords and music_report.
 
-What we need to do at this stage is change the `report_names` in `start_ords` so that
-they will match the `Name`.  
+If it has a `Name` the row came from the music_report.  If it has a `report_name` it came from
+the start orders.  (By "has" i mean is not NA).
 
-Let's go ahead and do that:
+
+## Next step = manual curation
+
 ```{r}
-start_ords2 <- start_ords %>%
-  mutate(
-    report_name = case_when(
-      report_name == "Crystals, Fort Collins Fire" ~ "Crystals, Fort Collins Fire",
-      report_name == "Herrera, Rivkah Chavez" ~ "Chavez Herrera, Rivkah",
-      report_name == "Crystals, Fort Collins Fire" ~ "Fire Crystals,",
-      report_name == "Fireflies, Fort Collins Fire Crystals -" ~ "Fort Collins Fire Crystals - Fireflies,",
-      report_name == "Icicles, Fort Collins Fire Crystal" ~ "Fort Collins Fire Crystals - Icicles,",
-      report_name == "Hutchinson, Shelby Winter" ~ "Hutchinson, Shelby 'Winter'",
-      report_name == "Owens, Ella Moon" ~ "Moon Owens, Ella",
-      report_name == "Pelt, Gwenyth Van" ~ "Van Pelt, Gwenyth",
-      TRUE ~ report_name  # this is important to get the unchanged values back there
-    )
-  )
+write_csv(joined, file = "InspectAndCurate.csv")
 ```
 
-Then we can try joining that on there:
-```{r}
-joined2 <- join_report_and_start_order(
-  MR = music_report,
-  SO = start_ords2
-)
+Then immediately copy that to InspectAndCurate-EDITED.csv
 
-joined_nas2 <- joined2 %>%
-  filter(is.na(Event) | is.na(report_event)) %>%
-  arrange(Name)
+Then do the `F` or `d` assignment in the STATUS column.
+
+### Filter and check the curated table
+
+Once the `d` and `F` notations have been made in the edited file (for example
+`InsepctAndCurate-Edited.csv` in the example above) and those edits have been
+saved in Excel (keeping it as a CSV file of the same name!!!) we read that back
+into R and remove the rows marked `d`, then we break out the `F` rows into
+a separate table `$follow_up` and a table of clean ones `$clean`.  The clean
+ones are checked to make sure that there is exactly one entry for each
+skater/music-report-event combo.
+
+```{r}
+filtered_events_list <- filter_and_check_curated_table("InspectAndCurate-Edited.csv")
+```
+
+
+
+### Associate the music files to these
+
+We have a function to associate music files to the skater-event combos in a file
+of mp3s that has been downloaded from EMS.
+
+```{r}
+music_paths <- associate_music_files(
+  C = filtered_events_list$clean,
+  music_events_dir = "gitignored_data/Music/2025FortCollinsClassic",
+  new_music_dir = "~/Desktop/StartOrderMusic---2025FortCollinsClassic"
+)
+```
+
+
+So, we have 327 pieces of music that work (and we have the Followups to deal with).
+
+Now we can copy those into the `new_music_dir` directory that we specified above.
+
+```{r}
+result_of_copy <- copy_music_files(music_paths$all_rows)
+```
+
+Then check the md5s
+```{r}
+result_of_copy %>%
+  filter(md5_orig != md5_new)
 ```

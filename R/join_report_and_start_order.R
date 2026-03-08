@@ -15,9 +15,9 @@
 #' @export
 join_report_and_start_order <- function(MR, SO) {
   boing <- full_join(
-    MR,
     SO,
-    by = join_by(Name == report_name),
+    MR,
+    by = join_by(music_name),
     relationship = "many-to-many"
   ) %>%
     select(Name, Event, report_event, event_full, everything()) %>%
@@ -29,5 +29,8 @@ join_report_and_start_order <- function(MR, SO) {
       .after = strdist
     ) %>%
     filter(is.na(hasPerfectMatch) | !(hasPerfectMatch & strdist > 0)) %>%
-    mutate(STATUS = "", .before = strdist)
+    mutate(STATUS = "", .before = strdist) %>%
+    select(music_name, Name, report_name, everything())
+
+  boing
 }
