@@ -1,0 +1,174 @@
+---
+title: "2026 FoCo Classic Examples with Lacy"
+output: html_notebook
+---
+
+Running through this whole thing using the 2025 FoCo Classic data, and then
+ultimately also looking at some of the preliminary 2026 FoCo Classic data to
+show Lacy how the package works.  
+
+I am doing this on R version 4.5.2 which is a fairly virgin installation of
+R (via conda) for my system so that I have to install the package, etc.
+```r
+remotes::install_github("eriqande/FCFSCmusicTools")
+```
+That failed so I tried getting the dependencies natively:
+```r
+install.packages(c('fuzzyjoin', 'pdftools', 'stringdist'))
+```
+Nope! That is probably a conda thing.  
+
+So, I will try this all in the older native R that I am using...That worked
+fine.  I suspect the native version has all the depedencies available as
+binaries while the conda version does not.
+
+
+We are using the data in `gitignored_data`.
+
+
+
+## Scrape the start orders
+
+```{r}
+library(tidyverse)
+library(FCFSCmusicTools)
+library(readxl)
+
+start_ords <- scrape_starting_orders("gitignored_data/2025-FCC-Starting-Orders")
+
+```
+
+The main purpose of this function is pull all the names and events of the starting orders
+and then process them with a bunch of regular-expression parsing in order to transform the
+names of the events and the names of the competitors into somethign that matches their
+names from the EMS system in the music report and the event report.
+
+This would all be easier if the events and competitor names were consistently reported
+between the starting orders PDFs that Sheldrin makes and the reports and music that we
+get from EMS!
+
+The EMS report lists individuals as `Lastname, Firstname` while the starting order
+PDFs list them as `Firstname Lastname, Skating_club`.  So the function `scrape_starting_orders()`
+tries to parse that into `Lastname, Firstname`.  That goes into the column `report_name`.
+
+The music comes from EMS sorted into event specific folders and then each piece named
+`Firstname Lastname_` + `first4ofID#` + `_` + `F or S for short or freestyle` + `_` + `GroupNum` + `.mp3`.
+So, the `music name` column in `start_ords` tries to get `Firstname Lastname`.
+
+You can easily look at the `start_ords` data frame by doing `View(start_ords)` in RStudio.
+
+When we look at that we can see the `_full` columns are the full data for each field
+scraped out of the PDFs, and that got turned into the important columns for later use:
+
+- `competitor_index`: starting place of the competitor
+- `report_name`: best guess of what the competitor's name will be in the EMS report
+- `music_name`: best guess of what the competitor's name will be in the music files
+- `report_event`: best guess of what the event name will be in the EMS report
+
+I say "best guess" because sometimes the name is a team name rather than individuals
+in it, and sometimes people have two-part last names (like `Van Peters`) that screw
+things up.
+
+
+## Next step, get the music report from EMS 
+
+I will make a video of how to download this music report as an excel file. For now,
+we just use the one from 2025 for illustration.  We read it in and then run it through
+the `clean_music_report()` function.  
+
+Huge note here: the synchro is typically given in a separate report, so we need
+to download each.  Read them both in, and the stack them one on top of the other
+with the `bind_rows()` function.
+```{r}
+music_report_main <- read_excel("gitignored_data/FortCollinsClassic2025-MusicFile-2025-03-30_22-29.xls") %>%
+  clean_music_report()
+
+music_report_synchro <- read_excel("gitignored_data/FortCollinsClassic2025-SYNCHRO-ONLY-MusicFile-2025-04-02_00_17.xls") %>%
+  clean_music_report()
+
+music_report <- bind_rows(music_report_main, music_report_synchro)
+```
+
+We can look at that with `View(music_report)`.  
+
+Now, the important thing to know is that we HOPE that the entries in the column
+`Name` in the `music_report` will correspond to the entries in the column
+`report_name` in the `start_ords`.
+
+And likewise, we HOPE that the entries in the  `Event` column in the `music_report` 
+will correspond to the entries int he column `report_event` in `start_ords`.
+
+Again, we say "HOPE" because there may have been some parsing errors are three-part
+name problems, etc.  But that is why we do some manual curation at this stage.
+The function `join_report_and_start_order()` does a full join of the `start_ords`
+and the `music_report` joining _only_ on `Name/report_name`.   We do this because
+we often have discprepancies between the event names in the report and the start
+orders and we will just manually curate those if needed.  
+
+What it does do though, is calculate the string distance between the `report_event` in
+`start_ords` and the `Event` in `music_report`.  If these are exactly the same, it
+notes it as a perfect match and removes all other rows that joined up to it, so that
+you don't have to deal with those during manual curation.  
+
+Let's see what this looks like:
+```{r}
+joined <- join_report_and_start_order(
+  MR = music_report,
+  SO = start_ords
+)
+```
+
+We can look at `joined` like this `View(joined)`.
+
+We see some `NA`s in `Event`.  This means that a row in the `start_ords` did not match up
+via a name to a row in the `music_report`.  Likewise, if we see an `NA` in the `report_event`
+column, that means that a row in the `music_report` did not join to anything in the
+`start_ords`.  This often occurs when the competitor names between then start-order 
+PDFs and the `music_report` are not well aligned.  
+
+One way to see all of these issues and probably figure out what is going on is
+by filtering `joined` to report only the rows that have NAs in Event or `report_event`
+(and sort those by name).
+```{r}
+joined_nas <- joined %>%
+  filter(is.na(Event) | is.na(report_event)) %>%
+  arrange(Name)
+```
+
+Then do `View(joined_nas)`.  Aha!  We see the problem is that the `report_name` and
+the `Name` do not match.  Note: if `event_full` is `NA`, then the `Name` column
+in `joined_nas` is giving us the `Name` from the `music_report`.
+If `event_full` is not NA, then `Name` is giving us the `report_name` from `start_ords`.
+
+What we need to do at this stage is change the `report_names` in `start_ords` so that
+they will match the `Name`.  
+
+Let's go ahead and do that:
+```{r}
+start_ords2 <- start_ords %>%
+  mutate(
+    report_name = case_when(
+      report_name == "Crystals, Fort Collins Fire" ~ "Crystals, Fort Collins Fire",
+      report_name == "Herrera, Rivkah Chavez" ~ "Chavez Herrera, Rivkah",
+      report_name == "Crystals, Fort Collins Fire" ~ "Fire Crystals,",
+      report_name == "Fireflies, Fort Collins Fire Crystals -" ~ "Fort Collins Fire Crystals - Fireflies,",
+      report_name == "Icicles, Fort Collins Fire Crystal" ~ "Fort Collins Fire Crystals - Icicles,",
+      report_name == "Hutchinson, Shelby Winter" ~ "Hutchinson, Shelby 'Winter'",
+      report_name == "Owens, Ella Moon" ~ "Moon Owens, Ella",
+      report_name == "Pelt, Gwenyth Van" ~ "Van Pelt, Gwenyth",
+      TRUE ~ report_name  # this is important to get the unchanged values back there
+    )
+  )
+```
+
+Then we can try joining that on there:
+```{r}
+joined2 <- join_report_and_start_order(
+  MR = music_report,
+  SO = start_ords2
+)
+
+joined_nas2 <- joined2 %>%
+  filter(is.na(Event) | is.na(report_event)) %>%
+  arrange(Name)
+```

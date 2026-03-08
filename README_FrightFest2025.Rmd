@@ -1,0 +1,277 @@
+---
+title: "Processing Music For FrightFest 2025"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+For FrightFest we use EntryEeze. I managed to get all turned around trying to login
+as an admin.  Amy was able to reset the password for me, and I am in as `EricAFF2025`,
+which must stand for Eric Admin Fright Fest 2025.  
+
+Once logged in, I end up in the Admin Home site and then you can select the Music
+tab, and Summary of Uploads under that.  There are 10 skaters still missing music.
+
+After a flurry of emails. I got the needed music uploaded for almost everyone.
+
+Some of the problems are duets where the partner uploaded the music. In some of those
+cases I was able to download that music and upload it to the other partner so that it
+does not show up as missing.  However, for Evangeline Singleton it shows up as her partner
+having uploaded it, but it still shows her music as missing.  I just leave that.
+
+The one person we need music for still is Alyssa Barrett.  But she will have to
+get that into the mix on the day of the competition.
+
+So, finally, on the music management tab I did the "Get spreadseet" button to get
+"UploadsCompleted.csv" and I put that in the gitignored directory.
+
+At this point I also downloaded all the music untagged, but I don't know yet
+how the schedule is coming along (and whether sheldrin is making PDFs this year).
+
+I have all the music in:
+```
+gitignored_data/FrightFest2025/Music/Sunday
+```
+
+They are named like this:
+```
+CompeteUSAProgramwMusic_Aspire2_Barrera_Frida.mp3
+CompeteUSAProgramwMusic_Aspire2_Charoenying_Felicity.mp3
+CompeteUSAProgramwMusic_Aspire2_Dally_Evelyn.mp3
+CompeteUSAProgramwMusic_Aspire2_Gornell_Palmer.mp3
+CompeteUSAProgramwMusic_Aspire2_Gould_Nora.mp3
+CompeteUSAProgramwMusic_Aspire2_Hice_Bryleigh.mp3
+```
+
+There are only 194 pieces of music and it seems pretty straightforward.
+I saw one accent on Cezanne that might give us some problems.
+
+Gonna email Amy and see about the start orders....
+
+## Doing it
+
+So, the start orders will not be finished before I leave for the Southern Hemisphere.
+Consequently I am going to just throw the music in event directories in alphabetical order
+by skater.
+
+This feels like it is going to be largely a one-off exercise. The ingredients are:
+```{r}
+library(tidyverse)
+library(fs)
+library(readxl)
+
+# a tibble of music files paths and basenames
+music_paths <- tibble(
+  full_path = dir_ls("gitignored_data/FrightFest2025/Music/Sunday/")
+) %>%
+  mutate(
+    basename = basename(full_path),
+    basename = str_replace(basename, "\\.mp3$", "")
+  ) %>%
+  separate(
+    basename, 
+    into = c("event_camel", "level", "lastname", "firstname", "extra1", "extra2", "extra3", "extra4"),
+    sep = "_",
+    fill = "right"
+    ) %>%
+  mutate(
+    firstname = replace_na(firstname, ""),
+    extra1 = replace_na(extra1, ""),
+    extra2 = replace_na(extra2, ""),
+    extra3 = replace_na(extra3, ""),
+    extra4 = replace_na(extra4, "")
+  )
+```
+
+And then we need the actual schedule of things that they just finished.  People have been
+calling this the 104.  I am going to keep the names of columns in lower case
+for this one.
+```{r}
+the_104_sched <- read_excel(
+  "gitignored_data/FrightFest2025/2025-Fright-Fest-final-draft-schedule.xlsx",
+  sheet = 1,
+  skip = 1
+) %>%
+  rename(
+    event_num = `Event #`
+  ) %>%
+  mutate(event_num = as.integer(event_num)) %>%
+  filter(!is.na(event_num)) %>%
+  select(
+    event_num,
+    Event,
+    Group,
+    `Event Code`,
+    `No. of Skaters`
+  ) %>%
+  rename(
+    event = Event,
+    group = Group,
+    event_code = `Event Code`,
+    number_of_skaters = `No. of Skaters`
+  )
+```
+
+That is good.  Now, we basically need to associate each of those numbered events with
+a numbered event from the `ScheduleSummaryEvents.csv` that I downloaded from EntryEeze,
+because that has the names that correspond well with how the music is named.  We will make
+the columns camel case here.
+```{r}
+SSE <- read_csv("gitignored_data/FrightFest2025/ScheduleSummaryEvents.csv") %>%
+  rename(
+    EventNum = `Event Num`,
+    EventName = `Event Name`,
+  ) %>%
+  select(
+    EventNum, EventName, Level, Group
+  )
+```
+
+Great.  Now we want to join those to make sure that the schedule looks correct
+(or at least that the event numbers match).
+```{r}
+compound_schedule <- the_104_sched %>%
+  left_join(SSE, by = join_by(event_num == EventNum)) %>%
+  filter(event_num >= 10)  # earlier events have no music
+```
+
+Then I looked at that to make sure things were lining up correctly.
+
+It all checks out except for the SYS items:
+```
+Open Juv Synchro Exhibition
+Open Masters Synchro Exhibition
+```
+I do not have music for those!!!
+
+## Grouping the music
+
+I should be able to squash (take out all special characters and spaces) the EventName
+and Level, and get something that corresponds to the event name in the music titles.
+And I am also going to make a column that gives the directory name which is from the
+104 with dashes for spaces. And I am going to whittle the columns down to only what we
+need, and we smoosh all groups together because we don't know who is in which
+```{r}
+compound2 <- compound_schedule %>%
+  mutate(
+    music_event_name = str_c(EventName, Level) %>% str_replace_all("[^a-zA-Z0-9]", ""),
+    event_dir_name = str_replace_all(event, " ", "-")
+  ) %>%
+  select(event_num, number_of_skaters, event_dir_name, music_event_name) %>%
+  group_by(event_dir_name, music_event_name) %>%
+  summarise(
+    number_of_skaters = sum(number_of_skaters),
+    event_num = paste(event_num, collapse = ",", sep = "")
+  ) %>%
+  arrange(event_num)
+```
+
+And then I can clean up the music paths to have what we need
+```{r}
+music_paths2 <- music_paths %>%
+  mutate(
+    music_event_name = str_c(event_camel, level),
+    file_name = str_c(lastname, "-", firstname, "-", extra1, extra2, extra3, extra4, "-", event_camel, "-", level, ".mp3")
+  ) %>%
+  select(music_event_name, file_name, full_path)
+```
+
+Now, I just full_join the compound2 and the music_paths2, and count up how many music files
+are in each etc.
+```{r}
+full_set <- compound2 %>%
+  full_join(music_paths2, by = join_by(music_event_name))
+```
+
+
+The first time I did that I found leftover music that revealed that:
+
+- There was no number for Basic 5, so I added "16" to that
+- It was missing a row for 11 Adaptive Aspire 2. I added that.
+
+And now I continue by summarizing how many music files we have for each. 
+
+```{r}
+full_set2 <- full_set %>%
+  group_by(music_event_name) %>%
+  mutate(
+    number_of_music_files = case_when(
+      is.na(file_name) ~ 0L,
+      TRUE ~ n()
+    ),
+    .after = number_of_skaters 
+  )
+```
+
+
+And we can look at the missing music ones:
+```{r}
+mism <- full_set2 %>%
+  filter(number_of_music_files != number_of_skaters) 
+
+mism %>%
+  write_csv("gitignored_data/FrightFest2025/skater-and-music-file-number-mismatches.csv")
+
+mism
+```
+
+Problems I found and fixed there:
+
+- Added Alyssa Barrett's music.
+- Duplicated Duet music.  I deleted one of the versions.
+- Lilia Behrle was missing music for `Showcase - Character Performance, Novice` and
+  `Showcase - Lyrical Pop, Novice`.  I expect this is because she moved from intermediate
+  to Novice.  (I got a late notice that her music was missing for novice from Entryeeze).
+  She appeared as an extra unaccounted for skater in Intermediate, so I moved her intermediate music
+  to Novice
+- Same thing with Alexandra McNamara.  I moved her Intermediate Emotional Performance
+  music to Novice
+- Noelle Duncan, Had been signed up for PrePre Lyrical Pop and for `AdaptiveProgramwmusic_Aspire2_`
+  but apparently she moved into different divisions.  So I moved her music to `Compete USA Program (w/Music), Basic 5`  and 
+`Compete USA Showcase - Lyrical Pop, Basic 1 - 6`.  And then I remove the Adaptive Aspire 2
+
+
+The only problems remaining are:
+
+- missing music for some of the synchro teams
+- 1 more music file than the number of skaters in `CompeteUSAProgramwMusicAspire3`
+  and `CompeteUSAShowcaseLyricalPopAspire14`.
+  
+I just left those extra music files in, since we don't have start order anyway.
+
+
+- Some had more music than skaters.  I just left those in there.
+
+
+
+## Finally we are ready to copy music around
+
+I am going to put the files we have into directories of event_num + event_dir_name. I can use the copy_music_files function.
+```{r}
+ready_for_copy <- full_set2 %>%
+  ungroup() %>%
+  filter(!is.na(full_path)) %>%
+  arrange(event_num, file_name) %>%
+  rename(
+    orig_music_path = "full_path"
+  ) %>%
+  mutate(
+    new_music_path = str_c(
+      "/Users/eriq/Desktop/FrightFest2025--Music/", 
+      event_num, "---", event_dir_name, "/", 
+      file_name
+    )
+  )
+```
+
+
+Do it:
+```{r}
+check_it <- FCFSCmusicTools::copy_music_files(ready_for_copy)
+
+# check the md5s
+sum(check_it$md5_orig != check_it$md5_new)
+```
+
